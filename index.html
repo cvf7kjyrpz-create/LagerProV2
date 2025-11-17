@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <title>Lager App – Inventur</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#000000" />
+
+  <!-- Manifest für Homescreen / PWA -->
+  <link rel="manifest" href="manifest.webmanifest">
+
+  <style>
+    :root{
+      --bg:#000;
+      --bg-elevated:#111319;
+      --border:#2a2f3b;
+      --accent:#2ecc71;
+      --accent-soft:rgba(46,204,113,0.15);
+      --danger:#e74c3c;
+      --text:#f5f5f7;
+      --text-muted:#9aa0b5;
+      --radius:8px;
+    }
+
+    *{box-sizing:border-box;}
+
+    body{
+      margin:0;
+      padding:0.8rem;
+      font-family:system-ui,-apple-system,"SF Pro Text","Segoe UI",sans-serif;
+      background:radial-gradient(circle at top,#1c2230 0,#05060a 60%);
+      color:var(--text);
+    }
+
+    h1{
+      margin:0 0 0.6rem 0;
+      font-size:1rem;
+      text-align:center;
+    }
+
+    /* Statistik */
+    #stats{
+      background:var(--bg-elevated);
+      border-radius:var(--radius);
+      border:1px solid var(--border);
+      padding:0.4rem 0.6rem;
+      font-size:0.75rem;
+      display:flex;
+      flex-wrap:wrap;
+      gap:0.8rem;
+      margin-bottom:0.6rem;
+    }
+    #stats span{color:var(--text-muted);}
+    #stats b{color:var(--text);}
+
+    /* Buttons & Filter */
+    .controls,.filters{
+      display:flex;
+      flex-wrap:wrap;
+      gap:0.4rem;
+      margin-bottom:0.5rem;
+    }
+
+    button{
+      cursor:pointer;
+      padding:0.35rem 0.8rem;
+      border-radius:999px;
+      border:1px solid var(--border);
+      background:#141922;
+      color:var(--text);
+      font-size:0.8rem;
+      display:inline-flex;
+      align-items:center;
+      gap:0.25rem;
+    }
+
+    button.primary{
+      background:var(--accent);
+      border-color:var(--accent);
+      color:#041208;
+      font-weight:600;
+    }
+
+    button.danger{
+      border-color:var(--danger);
+      color:var(--danger);
+    }
+
+    button:disabled{
+      opacity:0.4;
+      cursor:default;
+    }
+
+    label.btn-like{
+      padding:0.35rem 0.8rem;
+      border-radius:999px;
+      border:1px solid var(--border);
+      background:#141922;
+      font-size:0.8rem;
+      display:inline-flex;
+      align-items:center;
+      gap:0.25rem;
+      cursor:pointer;
+    }
+    label.btn-like input{display:none;}
+
+    input,select{
+      padding:0.35rem 0.4rem;
+      border-radius:999px;
+      border:1px solid var(--border);
+      background:#0e1118;
+      color:var(--text);
+      font-size:0.8rem;
+      outline:none;
+    }
+    input[type="search"]{flex:1;}
+    input::placeholder{color:var(--text-muted);}
+
+    textarea{
+      padding:0.35rem 0.4rem;
+      border-radius:6px;
+      border:1px solid var(--border);
+      background:#0e1118;
+      color:var(--text);
+      font-size:0.8rem;
+      resize:vertical;
+    }
+
+    /* Tabelle */
+    .table-wrapper{
+      background:var(--bg-elevated);
+      border-radius:var(--radius);
+      border:1px solid var(--border);
+      overflow:auto;
+    }
+    table{
+      width:100%;
+      border-collapse:collapse;
+      min-width:900px;
+    }
+    th,td{
+      padding:0.12rem 0.25rem;
+      border-bottom:1px solid #222735;
+      font-size:0.5rem;
+      white-space:nowrap;
+    }
+    th{
+      background:#1b202c;
+      text-align:left;
+      color:var(--text-muted);
+      position:sticky;
+      top:0;
+      z-index:1;
+    }
+    tbody tr:nth-child(odd){background:#10131b;}
+    tbody tr:nth-child(even){background:#141822;}
+    tbody tr.flagged{background:rgba(46,204,113,0.12);}
+
+    .text-muted{color:var(--text-muted);}
+
+    .qty-input{
+      width:40px;
+      padding:0.05rem;
+      font-size:0.5rem;
+      text-align:center;
+      border-radius:6px;
+      border:1px solid var(--border);
+      background:#05070f;
+      color:var(--text);
+    }
+
+    .badge-low{
+      background:var(--accent-soft);
+      color:var(--accent);
+      padding:0.05rem 0.2rem;
+      border-radius:999px;
+      font-size:0.42rem;
+      margin-left:0.1rem;
+    }
+
+    .actions-cell{
+      display:flex;
+      gap:0.15rem;
+      flex-wrap:nowrap;
+    }
+
+    .icon-btn{
+      border-radius:999px;
+      padding:0.12rem 0.28rem;
+      font-size:0.6rem;
+      border:1px solid var(--border);
+      background:#10141d;
+      min-width:0;
+    }
+    .icon-btn.danger{
+      border-color:var(--danger);
+      color:var(--danger);
+    }
+
+    @media(max-width:800px){
+      .controls,.filters{flex-direction:column;}
+      table{min-width:0;}
+      /* kleine Anzeige: Shop + Foto ausblenden */
+      th:nth-child(5),td:nth-child(5),
+      th:nth-child(10),td:nth-child(10){
+        display:none;
+      }
+    }
+
+    /* Dialoge */
+    dialog{
+      background:#11141c;
+      border:1px solid var(--border);
+      color:var(--text);
+      border-radius:var(--radius);
+      padding:0.9rem;
+      width:95%;
+      max-width:420px;
+    }
+    dialog::backdrop{
+      background:rgba(0,0,0,0.7);
+    }
+
+    .form-grid{
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+      gap:0.6rem;
+    }
+    .form-grid label{
+      font-size:0.75rem;
+      display:flex;
+      flex-direction:column;
+      gap:0.2rem;
+    }
+    .form-grid input,.form-grid select,.form-grid textarea{
+      border-radius:6px;
+    }
+    .full-width{grid-column:1/-1;}
+
+    .dialog-menu{
+      display:flex;
+      justify-content:flex-end;
+      gap:0.5rem;
+      margin-top:0.7rem;
+    }
+
+    .dialog-photo-content img{
+      max-width:90vw;
+      max-height:70vh;
+      border-radius:var(--radius);
+      border:1px solid var(--border);
+      display:block;
+    }
+
+    .small-hint{
+      font-size:0.7rem;
+      color:var(--text-muted);
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Lager App – Inventur</h1>
+
+  <!-- Statistik -->
+  <div id="stats">
+    <span>Artikel-Arten: <b id="statCount">0</b></span>
+    <span>Artikel gesamt: <b id="statQty">0</b></span>
+    <span>Gesamt-Einkaufspreis: <b id="statTotal">0,00 €</b></span>
+  </div>
+
+  <!-- Buttons -->
+  <section class="controls">
+    <button class="primary" id="btnAdd">+ Artikel</button>
+
+    <label class="btn-like">
+      Backup importieren (JSON)
+      <input type="file" id="inputImport" accept="application/json">
+    </label>
+
+    <button id="btnExportJson">Backup exportieren (JSON)</button>
+    <button id="btnPrint">Inventurliste drucken</button>
+  </section>
+
+  <!-- Filter -->
+  <section class="filters">
+    <input id="search" type="search" placeholder="Suche nach Name, Nummer, Zustand, Shop …">
+    <select id="filterFlag">
+      <option value="all">Alle</option>
+      <option value="flagged">Markierte</option>
+    </select>
+  </section>
+
+  <!-- Tabelle -->
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>★</th>
+          <th>Art.-Nr.</th>
+          <th>Name</th>
+          <th>Zustand</th>
+          <th>Wo gekauft</th>
+          <th>Menge</th>
+          <th>Preis/Stk (€)</th>
+          <th>Gesamt (€)</th>
+          <th>Kaufdatum</th>
+          <th>Foto</th>
+          <th>Notiz</th>
+          <th>Aktion</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+
+  <!-- Artikel-Dialog -->
+  <dialog id="itemDialog">
+    <form id="itemForm" class="form-grid" onsubmit="return false;">
+      <label>
+        Artikelnummer
+        <input id="itemNumber">
+      </label>
+
+      <label>
+        Kaufdatum
+        <input id="itemDate" type="date">
+      </label>
+
+      <label class="full-width">
+        Artikelname
+        <input id="itemName" required>
+      </label>
+
+      <label>
+        Zustand
+        <select id="itemCondition">
+          <option value="">– bitte wählen –</option>
+          <option value="Neu">Neu</option>
+          <option value="Wie neu">Wie neu</option>
+          <option value="Gebraucht">Gebraucht</option>
+        </select>
+      </label>
+
+      <label>
+        Wo gekauft
+        <input id="itemStore">
+      </label>
+
+      <label>
+        Menge
+        <input id="itemQty" type="number" min="0" value="1">
+      </label>
+
+      <label>
+        Einkaufspreis pro Stück (€)
+        <input id="itemPrice" type="number" step="0.01" min="0" value="0">
+      </label>
+
+      <label class="full-width">
+        Notiz
+        <textarea id="itemNote" rows="3" placeholder="z.B. Besonderheiten, Zustand, Lagerort …"></textarea>
+      </label>
+
+      <label class="full-width">
+        Foto
+        <input id="itemPhoto" type="file" accept="image/*">
+        <span id="itemPhotoInfo" class="small-hint">Kein Foto ausgewählt</span>
+      </label>
+
+      <label style="display:flex;align-items:center;gap:0.3rem;">
+        <input id="itemFlagged" type="checkbox">
+        <span class="small-hint">Artikel markieren</span>
+      </label>
+
+      <div class="dialog-menu full-width">
+        <button type="button" id="btnCancelItem">Abbrechen</button>
+        <button type="button" class="primary" id="btnSaveItem">Speichern</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Foto-Dialog -->
+  <dialog id="photoDialog">
+    <div class="dialog-photo-content">
+      <img id="photoDialogImg" alt="Artikel-Foto">
+      <div class="dialog-menu">
+        <button type="button" id="btnOpenPhoto" class="primary">Bild öffnen (Speichern möglich)</button>
+        <button type="button" id="btnClosePhoto" class="primary">Schließen</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Notiz-Dialog -->
+  <dialog id="noteDialog">
+    <h3 style="margin-top:0;font-size:0.9rem;">Notiz</h3>
+    <pre id="noteDialogText" style="white-space:pre-wrap;font-size:0.75rem;"></pre>
+    <div class="dialog-menu">
+      <button type="button" id="btnCloseNote" class="primary">Schließen</button>
+    </div>
+  </dialog>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const STORAGE_KEY = "lager-app-simple-v1";
+      let items = [];
+      let currentId = null;
+      let tempPhotoDataUrl = null;
+
+      const tbody = document.getElementById("tbody");
+      const itemDialog = document.getElementById("itemDialog");
+      const itemForm = document.getElementById("itemForm");
+      const photoDialog = document.getElementById("photoDialog");
+      const photoDialogImg = document.getElementById("photoDialogImg");
+      const noteDialog = document.getElementById("noteDialog");
+      const noteDialogText = document.getElementById("noteDialogText");
+
+      const statCount = document.getElementById("statCount");
+      const statQty = document.getElementById("statQty");
+      const statTotal = document.getElementById("statTotal");
+
+      // Daten laden
+      loadData();
+      render();
+
+      // Buttons
+      document.getElementById("btnAdd").onclick = () => openItemDialog(null);
+      document.getElementById("btnCancelItem").onclick = () => itemDialog.close();
+      document.getElementById("btnSaveItem").onclick = () => saveItem();
+
+      document.getElementById("btnExportJson").onclick = () => exportJson(items);
+      document.getElementById("btnPrint").onclick = () => printInventur(items);
+
+      document.getElementById("btnClosePhoto").onclick = () => photoDialog.close();
+      document.getElementById("btnOpenPhoto").onclick = () => {
+        if (!photoDialogImg.src) return;
+        window.open(photoDialogImg.src, "_blank");
+      };
+
+      document.getElementById("btnCloseNote").onclick = () => noteDialog.close();
+
+      document.getElementById("search").oninput = () => render();
+      document.getElementById("filterFlag").onchange = () => render();
+
+      document.getElementById("inputImport").onchange = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        try {
+          const data = await importJson(file);
+          if (Array.isArray(data)) {
+            items = data;
+            saveData();
+            render();
+            alert("Backup importiert.");
+          } else {
+            alert("Ungültiges JSON-Format.");
+          }
+        } catch (err) {
+          console.error(err);
+          alert("Fehler beim Import.");
+        } finally {
+          e.target.value = "";
+        }
+      };
+
+      document.getElementById("itemPhoto").addEventListener("change", (e) => {
+        const file = e.target.files?.[0];
+        const info = document.getElementById("itemPhotoInfo");
+        if (!file) {
+          tempPhotoDataUrl = null;
+          info.textContent = "Kein Foto ausgewählt";
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => {
+          tempPhotoDataUrl = reader.result;
+          info.textContent = "Foto ausgewählt";
+        };
+        reader.readAsDataURL(file);
+      });
+
+      // Tabellen-Aktionen
+      tbody.addEventListener("click", (e) => {
+        const btn = e.target.closest("button");
+        if (!btn) return;
+        const id = btn.dataset.id;
+        const action = btn.dataset.action;
+        if (!id || !action) return;
+
+        const item = items.find(i => i.id === id);
+        if (!item) return;
+
+        switch (action) {
+          case "flag":
+            item.flagged = !item.flagged;
+            saveData();
+            render();
+            break;
+          case "edit":
+            openItemDialog(id);
+            break;
+          case "photo":
+            if (item.photoDataUrl) {
+              photoDialogImg.src = item.photoDataUrl;
+              photoDialog.showModal();
+            }
+            break;
+          case "note":
+            if (item.note) {
+              noteDialogText.textContent = item.note;
+              noteDialog.showModal();
+            }
+            break;
+          case "delete":
+            if (confirm("Diesen Artikel wirklich löschen?")) {
+              items = items.filter(i => i.id !== id);
+              saveData();
+              render();
+            }
+            break;
+        }
+      });
+
+      // Menge direkt ändern
+      document.addEventListener("input", (e) => {
+        if (!e.target.classList.contains("qty-input")) return;
+        const id = e.target.dataset.id;
+        const value = Number(e.target.value);
+        const item = items.find(i => i.id === id);
+        if (!item) return;
+        item.quantity = isNaN(value) ? 0 : value;
+        saveData();
+        render();
+      });
+
+      // Dialog öffnen / speichern
+      function openItemDialog(id) {
+        currentId = id;
+        tempPhotoDataUrl = null;
+        itemForm.reset();
+        document.getElementById("itemPhotoInfo").textContent = "Kein Foto ausgewählt";
+        const flagEl = document.getElementById("itemFlagged");
+        if (flagEl) flagEl.checked = false;
+
+        if (id) {
+          const item = items.find(i => i.id === id);
+          if (item) {
+            setValue("itemNumber", item.articleNumber);
+            setValue("itemDate", item.purchaseDate);
+            setValue("itemName", item.name);
+            setValue("itemCondition", item.condition);
+            setValue("itemStore", item.store);
+            setValue("itemQty", item.quantity ?? 0);
+            setValue("itemPrice", item.price ?? 0);
+            setValue("itemNote", item.note || "");
+            if (flagEl) flagEl.checked = !!item.flagged;
+            if (item.photoDataUrl) {
+              document.getElementById("itemPhotoInfo").textContent = "Foto gespeichert (optional neues wählen)";
+            }
+          }
+        }
+        itemDialog.showModal();
+      }
+
+      function saveItem() {
+        const name = getValue("itemName").trim();
+        if (!name) {
+          alert("Bitte einen Artikelnamen eingeben.");
+          return;
+        }
+
+        const articleNumber = getValue("itemNumber").trim();
+        const purchaseDate = getValue("itemDate");
+        const condition = getValue("itemCondition");
+        const store = getValue("itemStore").trim();
+        const qty = Number(getValue("itemQty") || 0);
+        const price = Number(getValue("itemPrice") || 0);
+        const note = getValue("itemNote").trim();
+        const flagged = document.getElementById("itemFlagged")?.checked || false;
+
+        let item = currentId ? items.find(i => i.id === currentId) : null;
+        if (!item) {
+          item = { id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())) };
+          items.push(item);
+        }
+
+        item.articleNumber = articleNumber;
+        item.purchaseDate = purchaseDate;
+        item.name = name;
+        item.condition = condition;
+        item.store = store;
+        item.quantity = qty;
+        item.price = price;
+        item.note = note;
+        item.flagged = flagged;
+
+        if (tempPhotoDataUrl) {
+          item.photoDataUrl = tempPhotoDataUrl;
+        }
+
+        saveData();
+        render();
+        itemDialog.close();
+      }
+
+      // Daten / Storage
+      function loadData() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          items = raw ? JSON.parse(raw) : [];
+        } catch {
+          items = [];
+        }
+      }
+
+      function saveData() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+      }
+
+      // Rendering
+      function render() {
+        tbody.innerHTML = "";
+
+        const search = document.getElementById("search").value.toLowerCase();
+        const filterFlag = document.getElementById("filterFlag").value;
+
+        const filtered = items.filter(i => {
+          if (filterFlag === "flagged" && !i.flagged) return false;
+          if (search) {
+            const hay = (
+              (i.name || "") + " " +
+              (i.articleNumber || "") + " " +
+              (i.condition || "") + " " +
+              (i.store || "") + " " +
+              (i.note || "")
+            ).toLowerCase();
+            if (!hay.includes(search)) return false;
+          }
+          return true;
+        });
+
+        if (!filtered.length) {
+          const tr = document.createElement("tr");
+          tr.innerHTML = '<td colspan="12" style="text-align:center;padding:0.4rem;font-size:0.6rem;">Keine Artikel</td>';
+          tbody.appendChild(tr);
+          updateStats();
+          return;
+        }
+
+        for (const item of filtered) {
+          const tr = document.createElement("tr");
+          if (item.flagged) tr.classList.add("flagged");
+
+          const qty = Number(item.quantity || 0);
+          const price = Number(item.price || 0);
+          const total = qty * price;
+
+          tr.innerHTML = `
+            <td>${item.flagged ? "⭐" : ""}</td>
+            <td>${escapeHtml(item.articleNumber || "")}</td>
+            <td>${escapeHtml(item.name || "")}</td>
+            <td>${escapeHtml(item.condition || "")}</td>
+            <td>${escapeHtml(item.store || "")}</td>
+            <td>
+              <input type="number" min="0" value="${qty}" class="qty-input" data-id="${item.id}">
+              ${qty <= 1 ? '<span class="badge-low">niedrig</span>' : ""}
+            </td>
+            <td>${price.toFixed(2).replace(".", ",")}</td>
+            <td>${total.toFixed(2).replace(".", ",")}</td>
+            <td>${escapeHtml(item.purchaseDate || "")}</td>
+            <td>${item.photoDataUrl ? '<span class="text-muted">Foto</span>' : '<span class="text-muted">–</span>'}</td>
+            <td>
+              ${item.note
+                ? `<button class="icon-btn" data-action="note" data-id="${item.id}" title="Notiz anzeigen">📝</button>`
+                : '<span class="text-muted">–</span>'}
+            </td>
+            <td>
+              <div class="actions-cell">
+                <button class="icon-btn" data-action="flag" data-id="${item.id}" title="Markieren">⭐</button>
+                <button class="icon-btn" data-action="edit" data-id="${item.id}" title="Bearbeiten">✏️</button>
+                <button class="icon-btn" data-action="photo" data-id="${item.id}" title="Foto anzeigen" ${item.photoDataUrl ? "" : "disabled"}>📷</button>
+                <button class="icon-btn danger" data-action="delete" data-id="${item.id}" title="Löschen">🗑️</button>
+              </div>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        }
+
+        updateStats();
+      }
+
+      function updateStats() {
+        const count = items.length;
+        const totalQty = items.reduce((sum, i) => sum + Number(i.quantity || 0), 0);
+        const totalPrice = items.reduce((sum, i) => {
+          const qty = Number(i.quantity || 0);
+          const price = Number(i.price || 0);
+          return sum + qty * price;
+        }, 0);
+
+        statCount.textContent = count;
+        statQty.textContent = totalQty;
+        statTotal.textContent = totalPrice.toFixed(2).replace(".", ",") + " €";
+      }
+
+      // Backup JSON
+      function exportJson(list) {
+        const blob = new Blob([JSON.stringify(list, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "lager-backup.json";
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+
+      function importJson(file) {
+        return new Promise((resolve, reject) => {
+          const r = new FileReader();
+          r.onload = () => {
+            try {
+              resolve(JSON.parse(r.result));
+            } catch (e) {
+              reject(e);
+            }
+          };
+          r.onerror = reject;
+          r.readAsText(file);
+        });
+      }
+
+      // Inventur drucken (Browser-Druck)
+      function printInventur(list) {
+        const win = window.open("", "_blank");
+        if (!win) return;
+        const rows = list.map(i => {
+          const qty = Number(i.quantity || 0);
+          const price = Number(i.price || 0);
+          const total = qty * price;
+          return `
+            <tr>
+              <td>${escapeHtml(i.articleNumber || "")}</td>
+              <td>${escapeHtml(i.name || "")}</td>
+              <td>${escapeHtml(i.condition || "")}</td>
+              <td>${escapeHtml(i.store || "")}</td>
+              <td style="text-align:right;">${qty}</td>
+              <td style="text-align:right;">${price.toFixed(2).replace(".", ",")}</td>
+              <td style="text-align:right;">${total.toFixed(2).replace(".", ",")}</td>
+              <td>${escapeHtml(i.purchaseDate || "")}</td>
+            </tr>
+          `;
+        }).join("");
+
+        const totalAll = list.reduce((sum,i)=>{
+          const qty = Number(i.quantity||0);
+          const price = Number(i.price||0);
+          return sum + qty*price;
+        },0);
+
+        win.document.write(`
+          <html>
+            <head>
+              <meta charset="UTF-8">
+              <title>Inventur – Lagerbestand</title>
+              <style>
+                body{font-family:system-ui,sans-serif;font-size:10pt;padding:10mm;}
+                h1{font-size:14pt;margin-bottom:6mm;}
+                table{width:100%;border-collapse:collapse;}
+                th,td{border:1px solid #000;padding:2px 4px;font-size:9pt;}
+                th{text-align:left;background:#eee;}
+              </style>
+            </head>
+            <body>
+              <h1>Inventur – Lagerbestand</h1>
+              <p>Erstellt am: ${new Date().toLocaleDateString("de-DE")}</p>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Art.-Nr.</th>
+                    <th>Name</th>
+                    <th>Zustand</th>
+                    <th>Wo gekauft</th>
+                    <th>Menge</th>
+                    <th>Preis/Stk (€)</th>
+                    <th>Gesamt (€)</th>
+                    <th>Kaufdatum</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${rows || '<tr><td colspan="8">Keine Artikel</td></tr>'}
+                </tbody>
+              </table>
+              <p><b>Gesamtwert: ${totalAll.toFixed(2).replace(".", ",")} €</b></p>
+              <script>
+                window.print();
+              <\/script>
+            </body>
+          </html>
+        `);
+        win.document.close();
+      }
+
+      // Helper
+      function getValue(id) {
+        return document.getElementById(id).value;
+      }
+      function setValue(id,v) {
+        document.getElementById(id).value = v ?? "";
+      }
+      function escapeHtml(str){
+        return String(str)
+          .replace(/&/g,"&amp;")
+          .replace(/</g,"&lt;")
+          .replace(/>/g,"&gt;");
+      }
+    });
+  </script>
+</body>
+</html>
